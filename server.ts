@@ -63,7 +63,9 @@ async function startServer() {
   app.use(express.json({ limit: "10mb" }));
 
   initDb();
-  seedDb();
+  if (process.env.NODE_ENV !== 'production') {
+    seedDb();
+  }
 
   app.use("/uploads", express.static(UPLOAD_DIR));
 

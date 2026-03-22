@@ -14,6 +14,7 @@ const navLinks = [
 export function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const [displayName, setDisplayName] = useState('');
   const location = useLocation();
 
   useEffect(() => {
@@ -22,14 +23,20 @@ export function Navbar() {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
+  useEffect(() => {
+    fetch('/api/profile').then(r => r.json()).then(data => {
+      if (data?.display_name) setDisplayName(data.display_name);
+    }).catch(() => {});
+  }, []);
+
   return (
     <nav className={cn(
       "fixed top-0 w-full z-50 transition-all duration-300",
       scrolled ? "glass-nav py-4 shadow-sm" : "bg-transparent py-6"
     )}>
       <div className="max-w-7xl mx-auto px-8 flex justify-between items-center">
-        <Link to="/" className="font-mono font-bold text-xl tracking-tighter text-on-surface">
-          ARCHIVIST
+        <Link to="/" className="font-mono font-bold text-xl tracking-tighter text-on-surface uppercase">
+          {displayName || 'ARCHIVIST'}
         </Link>
 
         {/* Desktop Nav */}

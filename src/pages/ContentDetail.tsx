@@ -230,19 +230,19 @@ export function ContentDetail() {
       {/* Hero Image */}
       {content.heroImage && (
         <section className="mb-20">
-          <div className="bg-surface-container-low p-1 relative overflow-hidden">
+          <div className="bg-surface-container-low p-1 overflow-hidden">
             <img
               alt={content.title}
               className="w-full aspect-[21/9] object-cover opacity-90 mix-blend-multiply"
               src={content.heroImage}
               referrerPolicy="no-referrer"
             />
-            {content.heroCaption && (
-              <div className="absolute bottom-4 right-4 bg-surface/90 backdrop-blur-sm px-3 py-1 text-[10px] font-mono uppercase tracking-widest text-on-surface-variant">
-                {content.heroCaption}
-              </div>
-            )}
           </div>
+          {content.heroCaption && (
+            <div className="mt-3 text-[10px] font-mono uppercase tracking-widest text-on-surface-variant text-center">
+              {content.heroCaption}
+            </div>
+          )}
         </section>
       )}
 
