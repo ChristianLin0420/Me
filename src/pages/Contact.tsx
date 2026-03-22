@@ -90,8 +90,11 @@ function LocationMap({ location }: { location: string }) {
 }
 
 export function Contact() {
-  const [status, setStatus] = useState<'idle' | 'submitting' | 'success'>('idle');
+  const [status, setStatus] = useState<'idle' | 'submitting' | 'success' | 'error'>('idle');
   const [profile, setProfile] = useState<any>(null);
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [message, setMessage] = useState('');
 
   useEffect(() => {
     fetch('/api/profile').then(r => r.json()).then(setProfile).catch(() => {});
@@ -102,7 +105,19 @@ export function Contact() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setStatus('submitting');
-    setTimeout(() => setStatus('success'), 1500);
+    try {
+      const res = await fetch('/api/contact', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, email, message }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      setStatus('success');
+      setName(''); setEmail(''); setMessage('');
+    } catch {
+      setStatus('error');
+    }
   };
 
   return (
@@ -172,19 +187,24 @@ export function Contact() {
               </div>
             ) : (
               <form onSubmit={handleSubmit} className="space-y-8">
+                {status === 'error' && (
+                  <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded text-sm">
+                    Something went wrong. Please try again.
+                  </div>
+                )}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                   <div className="group">
                     <label className="block font-mono text-[10px] tracking-widest uppercase text-on-surface-variant mb-2 group-focus-within:text-primary">Full Name</label>
-                    <input required className="w-full bg-transparent border-0 border-b border-outline-variant focus:ring-0 focus:border-primary transition-all py-2 px-0" placeholder="John Doe" />
+                    <input required value={name} onChange={e => setName(e.target.value)} className="w-full bg-transparent border-0 border-b border-outline-variant focus:ring-0 focus:border-primary transition-all py-2 px-0" placeholder="John Doe" />
                   </div>
                   <div className="group">
                     <label className="block font-mono text-[10px] tracking-widest uppercase text-on-surface-variant mb-2 group-focus-within:text-primary">Email Address</label>
-                    <input required type="email" className="w-full bg-transparent border-0 border-b border-outline-variant focus:ring-0 focus:border-primary transition-all py-2 px-0" placeholder="hello@example.com" />
+                    <input required type="email" value={email} onChange={e => setEmail(e.target.value)} className="w-full bg-transparent border-0 border-b border-outline-variant focus:ring-0 focus:border-primary transition-all py-2 px-0" placeholder="hello@example.com" />
                   </div>
                 </div>
                 <div className="group">
                   <label className="block font-mono text-[10px] tracking-widest uppercase text-on-surface-variant mb-2 group-focus-within:text-primary">Your Message</label>
-                  <textarea required rows={5} className="w-full bg-transparent border-0 border-b border-outline-variant focus:ring-0 focus:border-primary transition-all py-2 px-0 resize-none" placeholder="How can I assist you with your digital archive?" />
+                  <textarea required rows={5} value={message} onChange={e => setMessage(e.target.value)} className="w-full bg-transparent border-0 border-b border-outline-variant focus:ring-0 focus:border-primary transition-all py-2 px-0 resize-none" placeholder="How can I assist you with your digital archive?" />
                 </div>
                 <div className="pt-6">
                   <Button type="submit" disabled={status === 'submitting'} className="w-full md:w-auto flex items-center justify-center gap-3">

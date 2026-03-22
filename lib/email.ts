@@ -1,6 +1,7 @@
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
 const SITE_URL = process.env.SITE_URL || 'https://christian-lin-me.fly.dev';
 const FROM_EMAIL = process.env.FROM_EMAIL || 'onboarding@resend.dev';
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL || '';
 
 export function isEmailConfigured(): boolean {
   return !!RESEND_API_KEY;
@@ -46,6 +47,35 @@ function emailWrapper(content: string): string {
     </div>
   </div>
 </body></html>`;
+}
+
+export async function sendContactEmail(name: string, email: string, message: string) {
+  const to = ADMIN_EMAIL;
+  if (!to) {
+    console.log(`[Email] ADMIN_EMAIL not set. Contact from ${name} <${email}>: ${message}`);
+    return { success: true, mock: true };
+  }
+
+  const html = emailWrapper(`
+    <div style="font-family:'Courier New',monospace;font-size:10px;letter-spacing:0.15em;text-transform:uppercase;color:#636658;margin-bottom:8px;">
+      NEW CONTACT INQUIRY
+    </div>
+    <h1 style="font-family:system-ui,sans-serif;font-size:24px;font-weight:700;color:#36392d;letter-spacing:-0.02em;margin:0 0 24px;">
+      Message from ${name}
+    </h1>
+    <div style="background:#fbfaef;padding:24px;margin-bottom:24px;">
+      <p style="font-size:14px;line-height:1.8;color:#36392d;margin:0;white-space:pre-wrap;">${message}</p>
+    </div>
+    <div style="font-size:13px;color:#636658;">
+      <p style="margin:0 0 4px;"><strong>From:</strong> ${name}</p>
+      <p style="margin:0 0 4px;"><strong>Email:</strong> <a href="mailto:${email}" style="color:#5e5e5e;">${email}</a></p>
+    </div>
+    <a href="mailto:${email}?subject=Re: Your inquiry — The Digital Archivist" style="display:inline-block;margin-top:24px;background:#5e5e5e;color:#f9f7f7;font-family:'Courier New',monospace;font-size:11px;letter-spacing:0.2em;text-transform:uppercase;text-decoration:none;padding:14px 32px;">
+      REPLY_TO_SENDER
+    </a>
+  `);
+
+  return sendEmail(to, `Contact: ${name} — The Digital Archivist`, html);
 }
 
 export async function sendConfirmationEmail(email: string, token: string) {

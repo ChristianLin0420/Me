@@ -238,7 +238,11 @@ export function addSubscriber(email: string, token: string) {
       db.prepare('UPDATE subscribers SET unsubscribed_at = NULL, verified = 0, token = ? WHERE id = ?').run(token, existing.id);
       return { id: existing.id, resubscribed: true };
     }
-    return { id: existing.id, already: true, verified: existing.verified };
+    if (existing.verified) {
+      return { id: existing.id, already: true, verified: true };
+    }
+    db.prepare('UPDATE subscribers SET token = ? WHERE id = ?').run(token, existing.id);
+    return { id: existing.id, already: false, verified: false };
   }
   const result = db.prepare('INSERT INTO subscribers (email, token) VALUES (?, ?)').run(email, token);
   return { id: Number(result.lastInsertRowid), new: true };

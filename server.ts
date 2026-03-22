@@ -9,7 +9,7 @@ import fs from "fs";
 import { initDb, seedDb } from "./db/index.js";
 import * as queries from "./db/queries.js";
 import { uploadToR2, isCloudStorageEnabled } from "./lib/storage.js";
-import { sendConfirmationEmail, sendNotificationEmail, isEmailConfigured } from "./lib/email.js";
+import { sendConfirmationEmail, sendNotificationEmail, sendContactEmail, isEmailConfigured } from "./lib/email.js";
 import crypto from "crypto";
 
 const JWT_SECRET = process.env.JWT_SECRET || "archivist-secret-change-me";
@@ -110,9 +110,18 @@ async function startServer() {
   });
 
   // ── Public: Contact ──
-  app.post("/api/contact", (req, res) => {
-    console.log("Contact form submission:", req.body);
-    res.json({ success: true, message: "Inquiry received. The archivist will respond shortly." });
+  app.post("/api/contact", async (req, res) => {
+    const { name, email, message } = req.body;
+    if (!name || !email || !message) {
+      return res.status(400).json({ error: "All fields are required" });
+    }
+    try {
+      await sendContactEmail(name, email, message);
+      res.json({ success: true, message: "Inquiry received. The archivist will respond shortly." });
+    } catch (e: any) {
+      console.error("Contact form error:", e);
+      res.json({ success: true, message: "Inquiry received. The archivist will respond shortly." });
+    }
   });
 
   // ── Public: Subscribe ──
