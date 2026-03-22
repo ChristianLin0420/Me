@@ -69,7 +69,7 @@ function createEmptyBlock(type: ContentBlock['type']): ContentBlock {
     case 'heading': return { type: 'heading', text: '' };
     case 'paragraph': return { type: 'paragraph', text: '' };
     case 'equation': return { type: 'equation', latex: '', caption: '' };
-    case 'image': return { type: 'image', url: '', caption: '', alt: '' };
+    case 'image': return { type: 'image', url: '', caption: '', alt: '', width: 80 };
     case 'code': return { type: 'code', code: '', language: '', caption: '' };
     case 'metrics': return { type: 'metrics', items: [{ label: '', value: '', description: '' }] };
   }
@@ -162,6 +162,23 @@ function BlockInput({
                 />
               </label>
             )}
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="font-mono text-[9px] uppercase tracking-widest text-on-surface-variant shrink-0">Width:</span>
+            {[40, 60, 80, 100].map(w => (
+              <button
+                key={w}
+                type="button"
+                onClick={() => onChange({ ...block, width: w })}
+                className={`px-3 py-1 font-mono text-[10px] transition-colors ${
+                  (block.width || 80) === w
+                    ? 'bg-primary text-on-primary'
+                    : 'bg-surface-container-high text-on-surface-variant hover:bg-surface-container-highest'
+                }`}
+              >
+                {w}%
+              </button>
+            ))}
           </div>
           {block.url && (
             <img src={block.url} alt={block.alt} className="max-h-48 object-cover opacity-80" referrerPolicy="no-referrer" />

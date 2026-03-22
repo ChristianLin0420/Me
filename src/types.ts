@@ -35,7 +35,7 @@ export type ContentBlock =
   | { type: 'heading'; text: string }
   | { type: 'paragraph'; text: string }
   | { type: 'equation'; latex: string; caption?: string }
-  | { type: 'image'; url: string; caption?: string; alt?: string }
+  | { type: 'image'; url: string; caption?: string; alt?: string; width?: number }
   | { type: 'code'; code: string; language?: string; caption?: string }
   | { type: 'metrics'; items: { label: string; value: string; description: string }[] };
 

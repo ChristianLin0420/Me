@@ -80,9 +80,10 @@ function BlockRenderer({ block }: { block: ContentBlock }) {
       );
 
     case 'image':
+      const imgWidth = block.width || 80;
       return (
         <div className="my-10 flex flex-col items-center">
-          <div className="w-[80%] bg-surface-container-low p-1 overflow-hidden">
+          <div style={{ width: `${imgWidth}%` }} className="bg-surface-container-low p-1 overflow-hidden">
             <img
               src={block.url}
               alt={block.alt || ''}
@@ -91,7 +92,7 @@ function BlockRenderer({ block }: { block: ContentBlock }) {
             />
           </div>
           {block.caption && (
-            <div className="w-[80%] mt-3 text-[10px] font-mono uppercase tracking-widest text-on-surface-variant text-center">
+            <div style={{ width: `${imgWidth}%` }} className="mt-3 text-[10px] font-mono uppercase tracking-widest text-on-surface-variant text-center">
               {block.caption}
             </div>
           )}
