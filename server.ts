@@ -8,26 +8,38 @@ import multer from "multer";
 import fs from "fs";
 import { initDb, seedDb } from "./db/index.js";
 import * as queries from "./db/queries.js";
+import { uploadToR2, isCloudStorageEnabled } from "./lib/storage.js";
 
 const JWT_SECRET = process.env.JWT_SECRET || "archivist-secret-change-me";
 const UPLOAD_DIR = path.join(process.cwd(), "uploads");
 
 if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 
-const upload = multer({
-  storage: multer.diskStorage({
-    destination: (_, __, cb) => cb(null, UPLOAD_DIR),
-    filename: (_, file, cb) => {
-      const ext = path.extname(file.originalname);
-      cb(null, `${Date.now()}-${Math.random().toString(36).slice(2)}${ext}`);
-    },
-  }),
-  limits: { fileSize: 50 * 1024 * 1024 },
-  fileFilter: (_, file, cb) => {
-    const allowed = /\.(jpg|jpeg|png|gif|webp|mp4|webm|svg)$/i;
-    cb(null, allowed.test(path.extname(file.originalname)));
-  },
-});
+const useCloud = isCloudStorageEnabled();
+
+const upload = useCloud
+  ? multer({
+      storage: multer.memoryStorage(),
+      limits: { fileSize: 50 * 1024 * 1024 },
+      fileFilter: (_, file, cb) => {
+        const allowed = /\.(jpg|jpeg|png|gif|webp|mp4|webm|svg)$/i;
+        cb(null, allowed.test(path.extname(file.originalname)));
+      },
+    })
+  : multer({
+      storage: multer.diskStorage({
+        destination: (_, __, cb) => cb(null, UPLOAD_DIR),
+        filename: (_, file, cb) => {
+          const ext = path.extname(file.originalname);
+          cb(null, `${Date.now()}-${Math.random().toString(36).slice(2)}${ext}`);
+        },
+      }),
+      limits: { fileSize: 50 * 1024 * 1024 },
+      fileFilter: (_, file, cb) => {
+        const allowed = /\.(jpg|jpeg|png|gif|webp|mp4|webm|svg)$/i;
+        cb(null, allowed.test(path.extname(file.originalname)));
+      },
+    });
 
 function authMiddleware(req: express.Request, res: express.Response, next: express.NextFunction) {
   const token = req.headers.authorization?.replace("Bearer ", "");
@@ -179,16 +191,37 @@ async function startServer() {
   });
 
   // ── Admin: File Upload ──
-  app.post("/api/upload", authMiddleware, upload.single("file"), (req, res) => {
+  app.post("/api/upload", authMiddleware, upload.single("file"), async (req, res) => {
     if (!req.file) return res.status(400).json({ error: "No file uploaded" });
-    const url = `/uploads/${req.file.filename}`;
-    res.json({ url, filename: req.file.filename, size: req.file.size });
+    try {
+      if (useCloud && req.file.buffer) {
+        const url = await uploadToR2(req.file.buffer, req.file.originalname, req.file.mimetype);
+        res.json({ url, filename: req.file.originalname, size: req.file.size });
+      } else {
+        const url = `/uploads/${req.file.filename}`;
+        res.json({ url, filename: req.file.filename, size: req.file.size });
+      }
+    } catch (e: any) {
+      res.status(500).json({ error: e.message || "Upload failed" });
+    }
   });
 
-  app.post("/api/upload/multiple", authMiddleware, upload.array("files", 20), (req, res) => {
+  app.post("/api/upload/multiple", authMiddleware, upload.array("files", 20), async (req, res) => {
     const files = (req.files as Express.Multer.File[]) || [];
-    const results = files.map(f => ({ url: `/uploads/${f.filename}`, filename: f.filename, size: f.size }));
-    res.json(results);
+    try {
+      const results = await Promise.all(
+        files.map(async (f) => {
+          if (useCloud && f.buffer) {
+            const url = await uploadToR2(f.buffer, f.originalname, f.mimetype);
+            return { url, filename: f.originalname, size: f.size };
+          }
+          return { url: `/uploads/${f.filename}`, filename: f.filename, size: f.size };
+        })
+      );
+      res.json(results);
+    } catch (e: any) {
+      res.status(500).json({ error: e.message || "Upload failed" });
+    }
   });
 
   // ── Vite / Static Serving ──
