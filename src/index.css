@@ -1,0 +1,100 @@
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Fira+Code:wght@300;400;500;700&family=Inter:wght@300;400;500;600&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-headline: "Space Grotesk", sans-serif;
+  --font-body: "Inter", sans-serif;
+  --font-mono: "Fira Code", monospace;
+
+  --color-surface: #fefcf4;
+  --color-surface-container-low: #fbfaef;
+  --color-surface-container-high: #eeefe0;
+  --color-surface-container-highest: #e8ead8;
+  --color-surface-container-lowest: #ffffff;
+  --color-on-surface: #36392d;
+  --color-on-surface-variant: #636658;
+  --color-primary: #5e5e5e;
+  --color-primary-dim: #525252;
+  --color-on-primary: #f9f7f7;
+  --color-tertiary: #4d6b5a;
+  --color-outline-variant: #b9bbaa;
+}
+
+@layer base {
+  body {
+    @apply bg-surface text-on-surface font-body antialiased;
+  }
+}
+
+@layer utilities {
+  .mono-text {
+    @apply font-mono uppercase tracking-widest;
+  }
+  
+  .glass-nav {
+    @apply bg-surface/80 backdrop-blur-md;
+  }
+
+  .tonal-lift {
+    @apply transition-all duration-300 hover:bg-surface-container-lowest hover:-translate-y-1;
+  }
+}
+
+/* KaTeX overrides to match archivist theme */
+.katex { font-size: 1.1em; }
+.katex .base { color: #36392d; }
+.katex-display { margin: 0; }
+
+/* Syntax highlighting — Archivist theme
+   Warm tones on dark surface, matching the design system */
+.hljs-keyword,
+.hljs-selector-tag,
+.hljs-built_in,
+.hljs-name { color: #c4a47c; }
+
+.hljs-string,
+.hljs-attr,
+.hljs-symbol,
+.hljs-bullet,
+.hljs-addition { color: #a8c4a0; }
+
+.hljs-number,
+.hljs-literal,
+.hljs-variable.constant_ { color: #d4a76a; }
+
+.hljs-title,
+.hljs-title.class_,
+.hljs-title.function_ { color: #dcc8a0; }
+
+.hljs-params { color: #c8bfb0; }
+
+.hljs-comment,
+.hljs-quote { color: #6d6a60; font-style: italic; }
+
+.hljs-doctag { color: #8fa89a; }
+
+.hljs-meta,
+.hljs-meta .hljs-keyword { color: #9a8f80; }
+
+.hljs-type,
+.hljs-class .hljs-title { color: #b8cbb0; }
+
+.hljs-attr { color: #c4a47c; }
+
+.hljs-property { color: #c0b8a8; }
+
+.hljs-regexp { color: #c4907c; }
+
+.hljs-operator { color: #a0a090; }
+
+.hljs-punctuation { color: #8a8878; }
+
+.hljs-selector-class,
+.hljs-selector-id { color: #b8a888; }
+
+.hljs-deletion { color: #c47070; }
+
+.hljs-section { color: #dcc8a0; font-weight: 600; }
+
+.hljs-emphasis { font-style: italic; }
+.hljs-strong { font-weight: 700; }
