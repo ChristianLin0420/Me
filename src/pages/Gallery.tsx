@@ -30,7 +30,7 @@ export function Gallery() {
           <div>
             <p className="font-mono text-xs uppercase tracking-[0.3em] text-on-surface-variant mb-4">Visual Archives — Vol. 04</p>
             <h1 className="font-headline text-5xl md:text-7xl font-bold tracking-tighter text-on-surface max-w-3xl">
-              A Study in <br/><span className="text-on-surface-variant/40">Minimalist Persistence.</span>
+              A Glimps of <br/><span className="text-on-surface-variant/40">Minimalist Persistence.</span>
             </h1>
           </div>
           <div className="flex flex-col items-start md:items-end gap-2">

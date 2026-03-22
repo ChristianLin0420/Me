@@ -33,7 +33,7 @@ export function Home() {
               STATUS: {profile?.status_text || 'RESEARCHING ARTIFICIAL GENERAL INTELLIGENCE'}
             </div>
             <h1 className="font-headline text-6xl md:text-8xl font-bold tracking-tighter text-on-surface leading-[0.9] mb-8">
-              Mapping the <br/>latent space <br/>of reason.
+              Mapping the <br/>latent space <br/>to world.
             </h1>
             <p className="text-xl md:text-2xl text-on-surface-variant max-w-2xl leading-relaxed mb-10">
               {profile?.bio || 'Machine Learning Researcher specializing in Transformer architectures and symbolic reasoning. Currently investigating the intersection of formal logic and neural networks.'}
@@ -70,9 +70,9 @@ export function Home() {
           <SectionHeader title="Core Vectors" subtitle="Current areas of technical exploration" />
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             {[
-              { title: 'Neural Logic', desc: 'Synthesizing gradient-based learning with hard-coded symbolic constraints.' },
-              { title: 'Graph Diffusion', desc: 'Leveraging non-Euclidean geometry to model hierarchical relationships.' },
-              { title: 'Bio-Informatics', desc: 'Applying sequence modeling techniques to protein folding and drug discovery.' }
+              { title: 'Robotic', desc: 'Developing autonomous systems that bridge perception, planning, and physical interaction in unstructured environments.' },
+              { title: 'World Model', desc: 'Building internal representations that enable agents to predict, simulate, and reason about dynamic environments.' },
+              { title: 'Multi-Agent RL', desc: 'Designing cooperative and competitive reinforcement learning frameworks for emergent multi-agent behavior.' }
             ].map((vector, i) => (
               <div key={i} className="p-10 bg-surface-container-lowest tonal-lift">
                 <h3 className="mono-text font-bold text-xl mb-4 uppercase">{vector.title}</h3>
