@@ -1,10 +1,38 @@
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useParams, Link, useLocation } from 'react-router-dom';
 import { motion } from 'motion/react';
 import { ArrowLeft, ArrowRight } from 'lucide-react';
 import { ContentDetail as ContentDetailType, ContentBlock } from '@/src/types';
 import { highlightCode } from '@/src/lib/highlight';
 import { LaTeX } from '@/src/components/LaTeX';
+
+function parseInlineFormatting(text: string): React.ReactNode[] {
+  const tokens: React.ReactNode[] = [];
+  const regex = /(\*\*\*.+?\*\*\*|\*\*.+?\*\*|\*.+?\*)/g;
+  let lastIndex = 0;
+  let match;
+
+  while ((match = regex.exec(text)) !== null) {
+    if (match.index > lastIndex) {
+      tokens.push(text.slice(lastIndex, match.index));
+    }
+    const raw = match[0];
+    if (raw.startsWith('***') && raw.endsWith('***')) {
+      tokens.push(<strong key={match.index}><em>{raw.slice(3, -3)}</em></strong>);
+    } else if (raw.startsWith('**') && raw.endsWith('**')) {
+      tokens.push(<strong key={match.index}>{raw.slice(2, -2)}</strong>);
+    } else if (raw.startsWith('*') && raw.endsWith('*')) {
+      tokens.push(<em key={match.index}>{raw.slice(1, -1)}</em>);
+    }
+    lastIndex = match.index + raw.length;
+  }
+
+  if (lastIndex < text.length) {
+    tokens.push(text.slice(lastIndex));
+  }
+
+  return tokens;
+}
 
 function RichText({ text }: { text: string }) {
   const parts = text.split(/(\$[^$]+\$)/g);
@@ -15,7 +43,7 @@ function RichText({ text }: { text: string }) {
           const latex = part.slice(1, -1);
           return <LaTeX key={i} math={latex} />;
         }
-        return <span key={i}>{part}</span>;
+        return <span key={i}>{...parseInlineFormatting(part)}</span>;
       })}
     </>
   );
@@ -53,15 +81,17 @@ function BlockRenderer({ block }: { block: ContentBlock }) {
 
     case 'image':
       return (
-        <div className="my-10 bg-surface-container-low p-1 relative overflow-hidden">
-          <img
-            src={block.url}
-            alt={block.alt || ''}
-            className="w-full aspect-[21/9] object-cover opacity-90 mix-blend-multiply"
-            referrerPolicy="no-referrer"
-          />
+        <div className="my-10 flex flex-col items-center">
+          <div className="w-[80%] bg-surface-container-low p-1 overflow-hidden">
+            <img
+              src={block.url}
+              alt={block.alt || ''}
+              className="w-full object-cover opacity-90 mix-blend-multiply"
+              referrerPolicy="no-referrer"
+            />
+          </div>
           {block.caption && (
-            <div className="absolute bottom-4 right-4 bg-surface/90 backdrop-blur-sm px-3 py-1 text-[10px] font-mono uppercase tracking-widest text-on-surface-variant">
+            <div className="w-[80%] mt-3 text-[10px] font-mono uppercase tracking-widest text-on-surface-variant text-center">
               {block.caption}
             </div>
           )}

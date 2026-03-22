@@ -107,7 +107,7 @@ function BlockInput({
             className="w-full bg-transparent border border-outline-variant/15 focus:ring-0 focus:border-primary p-3 text-sm leading-relaxed resize-y"
           />
           <p className="font-mono text-[9px] text-on-surface-variant/50 tracking-wider">
-            TIP: Wrap LaTeX in dollar signs for inline math — e.g. <code className="bg-surface-container-high px-1">$\alpha + \beta$</code> renders as inline equation
+            TIP: <code className="bg-surface-container-high px-1">**bold**</code> <code className="bg-surface-container-high px-1">*italic*</code> <code className="bg-surface-container-high px-1">***bold italic***</code> <code className="bg-surface-container-high px-1">$LaTeX$</code>
           </p>
         </div>
       );
