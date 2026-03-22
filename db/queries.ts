@@ -228,6 +228,51 @@ export function deleteGalleryItem(id: number) {
   getDb().prepare('DELETE FROM gallery WHERE id = ?').run(id);
 }
 
+// ── Subscribers ──
+
+export function addSubscriber(email: string, token: string) {
+  const db = getDb();
+  const existing = db.prepare('SELECT * FROM subscribers WHERE email = ?').get(email) as any;
+  if (existing) {
+    if (existing.unsubscribed_at) {
+      db.prepare('UPDATE subscribers SET unsubscribed_at = NULL, verified = 0, token = ? WHERE id = ?').run(token, existing.id);
+      return { id: existing.id, resubscribed: true };
+    }
+    return { id: existing.id, already: true, verified: existing.verified };
+  }
+  const result = db.prepare('INSERT INTO subscribers (email, token) VALUES (?, ?)').run(email, token);
+  return { id: Number(result.lastInsertRowid), new: true };
+}
+
+export function verifySubscriber(token: string) {
+  const db = getDb();
+  const sub = db.prepare('SELECT * FROM subscribers WHERE token = ?').get(token) as any;
+  if (!sub) return null;
+  db.prepare('UPDATE subscribers SET verified = 1 WHERE id = ?').run(sub.id);
+  return { id: sub.id, email: sub.email };
+}
+
+export function unsubscribe(token: string) {
+  const db = getDb();
+  const sub = db.prepare('SELECT * FROM subscribers WHERE token = ?').get(token) as any;
+  if (!sub) return null;
+  db.prepare("UPDATE subscribers SET unsubscribed_at = datetime('now') WHERE id = ?").run(sub.id);
+  return { id: sub.id, email: sub.email };
+}
+
+export function getVerifiedSubscribers() {
+  return getDb().prepare('SELECT id, email, subscribed_at FROM subscribers WHERE verified = 1 AND unsubscribed_at IS NULL').all();
+}
+
+export function getAllSubscribers() {
+  return getDb().prepare('SELECT id, email, verified, subscribed_at, unsubscribed_at FROM subscribers ORDER BY subscribed_at DESC').all();
+}
+
+export function getSubscriberCount() {
+  const row = getDb().prepare('SELECT COUNT(*) as count FROM subscribers WHERE verified = 1 AND unsubscribed_at IS NULL').get() as any;
+  return row?.count || 0;
+}
+
 // ── Auth ──
 
 export function getAdminByUsername(username: string) {

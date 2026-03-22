@@ -1,7 +1,93 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion } from 'motion/react';
-import { Send, ArrowUpRight, MapPin } from 'lucide-react';
+import { Send, ArrowUpRight } from 'lucide-react';
 import { Button } from '@/src/components/UI';
+
+declare global {
+  interface Window {
+    L?: any;
+  }
+}
+
+const LOCATION_COORDS: Record<string, [number, number]> = {
+  'hsinchu': [24.8036, 120.9686],
+  'taipei': [25.033, 121.5654],
+  'london': [51.5074, -0.1278],
+  'zürich': [47.3769, 8.5417],
+  'zurich': [47.3769, 8.5417],
+  'new york': [40.7128, -74.0060],
+  'san francisco': [37.7749, -122.4194],
+  'tokyo': [35.6762, 139.6503],
+  'berlin': [52.5200, 13.4050],
+  'singapore': [1.3521, 103.8198],
+};
+
+function getCoords(location: string): [number, number] {
+  const lower = location.toLowerCase();
+  for (const [key, coords] of Object.entries(LOCATION_COORDS)) {
+    if (lower.includes(key)) return coords;
+  }
+  return [24.8036, 120.9686];
+}
+
+function LocationMap({ location }: { location: string }) {
+  const mapRef = useRef<HTMLDivElement>(null);
+  const mapInstance = useRef<any>(null);
+
+  useEffect(() => {
+    if (!mapRef.current || mapInstance.current) return;
+
+    function initMap() {
+      if (!window.L || !mapRef.current) {
+        setTimeout(initMap, 100);
+        return;
+      }
+
+      const coords = getCoords(location);
+      const map = window.L.map(mapRef.current, {
+        center: coords,
+        zoom: 12,
+        zoomControl: false,
+        attributionControl: false,
+        scrollWheelZoom: false,
+        dragging: false,
+        touchZoom: false,
+        doubleClickZoom: false,
+      });
+
+      window.L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+        maxZoom: 19,
+      }).addTo(map);
+
+      const pinIcon = window.L.divIcon({
+        html: `<div style="width:24px;height:24px;background:#5e5e5e;border:3px solid #fefcf4;border-radius:50%;box-shadow:0 2px 8px rgba(54,57,45,0.3);"></div>`,
+        iconSize: [24, 24],
+        iconAnchor: [12, 12],
+        className: '',
+      });
+
+      window.L.marker(coords, { icon: pinIcon }).addTo(map);
+      mapInstance.current = map;
+    }
+
+    initMap();
+
+    return () => {
+      if (mapInstance.current) {
+        mapInstance.current.remove();
+        mapInstance.current = null;
+      }
+    };
+  }, [location]);
+
+  return (
+    <div
+      ref={mapRef}
+      className="h-48 w-full rounded overflow-hidden"
+      style={{ filter: 'grayscale(1) sepia(0.35) contrast(0.85) brightness(1.05)' }}
+    />
+  );
+}
 
 export function Contact() {
   const [status, setStatus] = useState<'idle' | 'submitting' | 'success'>('idle');
@@ -67,14 +153,11 @@ export function Contact() {
           </section>
           <section className="bg-surface-container-low p-8 rounded-lg">
             <h3 className="font-mono text-[10px] tracking-widest uppercase text-on-surface-variant mb-4">Location</h3>
-            <div className="relative h-48 w-full bg-surface-container-high mb-4 overflow-hidden rounded grayscale">
-              <img src="https://picsum.photos/seed/map/400/300" alt="Map" className="w-full h-full object-cover opacity-50" referrerPolicy="no-referrer" />
-              <div className="absolute inset-0 flex items-center justify-center">
-                <MapPin size={32} className="text-primary" />
-              </div>
+            <div className="mb-4">
+              <LocationMap location={profile?.location || 'Hsinchu, TW'} />
             </div>
             <p className="font-mono text-xs uppercase text-on-surface-variant">
-              {profile?.location || 'London, United Kingdom'}
+              {profile?.location || 'Hsinchu, TW'}
             </p>
           </section>
         </div>

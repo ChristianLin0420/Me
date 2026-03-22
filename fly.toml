@@ -1,9 +1,9 @@
-# fly.toml app configuration file generated for archivist-me on 2026-03-22T15:06:30+08:00
+# fly.toml app configuration file generated for christian-lin-me on 2026-03-22T15:34:03+08:00
 #
 # See https://fly.io/docs/reference/configuration/ for information about how to use this file.
 #
 
-app = 'archivist-me'
+app = 'christian-lin-me'
 primary_region = 'sjc'
 
 [build]

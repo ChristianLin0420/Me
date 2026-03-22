@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { ArrowLeft, Save, Trash2, Eye } from 'lucide-react';
+import { ArrowLeft, Save, Trash2, Eye, Bell } from 'lucide-react';
 import { ContentBlock } from '@/src/types';
 import { BlockEditor } from './BlockEditor';
 import { useAuth } from './useAuth';
@@ -57,6 +57,7 @@ export function ContentEditor() {
   const [form, setForm] = useState<FormData>(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [notifySubs, setNotifySubs] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
@@ -148,6 +149,25 @@ export function ContentEditor() {
       }
       const data = await res.json();
       setSuccess('Saved successfully');
+
+      if (notifySubs) {
+        try {
+          await authFetch('/api/admin/notify', {
+            method: 'POST',
+            body: JSON.stringify({
+              title: form.title,
+              type: contentType,
+              excerpt: form.abstract || form.excerpt || '',
+              contentId: data.id || id,
+            }),
+          });
+          setSuccess('Saved & subscribers notified');
+        } catch {
+          setSuccess('Saved, but notification failed');
+        }
+        setNotifySubs(false);
+      }
+
       if (isNew && data.id) {
         navigate(`${listPath}/${data.id}`, { replace: true });
       }
@@ -209,6 +229,16 @@ export function ContentEditor() {
               </button>
             </>
           )}
+          <label className="flex items-center gap-2 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={notifySubs}
+              onChange={e => setNotifySubs(e.target.checked)}
+              className="accent-primary w-3.5 h-3.5"
+            />
+            <Bell size={12} className="text-on-surface-variant" />
+            <span className="font-mono text-[10px] uppercase tracking-widest text-on-surface-variant">Notify</span>
+          </label>
           <button
             onClick={handleSave}
             disabled={saving}

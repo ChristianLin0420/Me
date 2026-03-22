@@ -1,9 +1,88 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'motion/react';
+import { Mail } from 'lucide-react';
 import { SectionHeader } from '@/src/components/UI';
 import { Publication, BlogPost, GalleryItem } from '@/src/types';
 import { cn } from '@/src/lib/utils';
+
+function SubscribeSection() {
+  const [email, setEmail] = useState('');
+  const [status, setStatus] = useState<'idle' | 'submitting' | 'success' | 'error'>('idle');
+  const [message, setMessage] = useState('');
+
+  const handleSubscribe = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email) return;
+    setStatus('submitting');
+    try {
+      const res = await fetch('/api/subscribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      setStatus('success');
+      setMessage(data.message);
+      setEmail('');
+    } catch (err: any) {
+      setStatus('error');
+      setMessage(err.message || 'Something went wrong');
+    }
+  };
+
+  return (
+    <section className="bg-surface-container-low py-24 mb-0">
+      <div className="max-w-7xl mx-auto px-8">
+        <div className="max-w-2xl">
+          <div className="mono-text text-[10px] text-on-surface-variant mb-4 flex items-center gap-2">
+            <Mail size={12} />
+            SIGNAL_INTERCEPT
+          </div>
+          <h2 className="font-headline text-4xl md:text-5xl font-bold tracking-tighter mb-4">
+            Stay in the loop.
+          </h2>
+          <p className="text-on-surface-variant leading-relaxed mb-10 max-w-lg">
+            Receive dispatches when new research, publications, or notes are archived.
+          </p>
+
+          {status === 'success' ? (
+            <div className="bg-surface-container-lowest p-6 border-l-4 border-tertiary">
+              <p className="font-mono text-sm text-on-surface">{message}</p>
+            </div>
+          ) : (
+            <form onSubmit={handleSubscribe} className="flex flex-col sm:flex-row gap-4">
+              <input
+                type="email"
+                value={email}
+                onChange={e => setEmail(e.target.value)}
+                placeholder="your@email.com"
+                required
+                className="flex-grow bg-transparent border-0 border-b-2 border-outline-variant/30 focus:ring-0 focus:border-primary py-3 px-0 text-sm placeholder:text-on-surface-variant/40"
+              />
+              <button
+                type="submit"
+                disabled={status === 'submitting'}
+                className="shrink-0 bg-primary text-on-primary px-8 py-3 font-mono text-[11px] uppercase tracking-widest hover:bg-primary-dim transition-all active:scale-95 disabled:opacity-50"
+              >
+                {status === 'submitting' ? 'Sending...' : 'Subscribe'}
+              </button>
+            </form>
+          )}
+
+          {status === 'error' && (
+            <p className="mt-4 font-mono text-xs text-red-600">{message}</p>
+          )}
+
+          <p className="mt-6 font-mono text-[9px] text-on-surface-variant/40 tracking-wider uppercase">
+            Your data stays private. Unsubscribe anytime.
+          </p>
+        </div>
+      </div>
+    </section>
+  );
+}
 
 export function Home() {
   const [publications, setPublications] = useState<Publication[]>([]);
@@ -189,6 +268,9 @@ export function Home() {
           ))}
         </div>
       </section>
+
+      {/* Subscribe */}
+      <SubscribeSection />
     </motion.div>
   );
 }

@@ -19,6 +19,7 @@ import { ContentList } from './admin/ContentList';
 import { ContentEditor } from './admin/ContentEditor';
 import { AdminGallery } from './admin/AdminGallery';
 import { AdminProfile } from './admin/AdminProfile';
+import { AdminSubscribers } from './admin/AdminSubscribers';
 
 function AdminRoutes() {
   const { isAuthenticated, loading, login, logout, username } = useAuth();
@@ -48,6 +49,7 @@ function AdminRoutes() {
         <Route path="blogs/new" element={<ContentEditor />} />
         <Route path="blogs/:id" element={<ContentEditor />} />
         <Route path="gallery" element={<AdminGallery />} />
+        <Route path="subscribers" element={<AdminSubscribers />} />
         <Route path="profile" element={<AdminProfile />} />
       </Route>
     </Routes>

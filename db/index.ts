@@ -87,6 +87,15 @@ export function initDb() {
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
 
+    CREATE TABLE IF NOT EXISTS subscribers (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      email TEXT NOT NULL UNIQUE,
+      verified INTEGER NOT NULL DEFAULT 0,
+      token TEXT NOT NULL,
+      subscribed_at TEXT NOT NULL DEFAULT (datetime('now')),
+      unsubscribed_at TEXT DEFAULT NULL
+    );
+
     CREATE TABLE IF NOT EXISTS profile (
       id INTEGER PRIMARY KEY CHECK (id = 1),
       display_name TEXT NOT NULL DEFAULT '',

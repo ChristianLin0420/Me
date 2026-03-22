@@ -1,5 +1,5 @@
 import { Link, useLocation, Outlet } from 'react-router-dom';
-import { LayoutDashboard, FileText, BookOpen, Image, LogOut, User } from 'lucide-react';
+import { LayoutDashboard, FileText, BookOpen, Image, LogOut, User, Users } from 'lucide-react';
 import { cn } from '@/src/lib/utils';
 
 const adminNav = [
@@ -7,6 +7,7 @@ const adminNav = [
   { name: 'Publications', path: '/admin/publications', icon: FileText },
   { name: 'Blogs', path: '/admin/blogs', icon: BookOpen },
   { name: 'Gallery', path: '/admin/gallery', icon: Image },
+  { name: 'Subscribers', path: '/admin/subscribers', icon: Users },
   { name: 'Profile', path: '/admin/profile', icon: User },
 ];
 

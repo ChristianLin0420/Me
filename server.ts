@@ -9,6 +9,8 @@ import fs from "fs";
 import { initDb, seedDb } from "./db/index.js";
 import * as queries from "./db/queries.js";
 import { uploadToR2, isCloudStorageEnabled } from "./lib/storage.js";
+import { sendConfirmationEmail, sendNotificationEmail, isEmailConfigured } from "./lib/email.js";
+import crypto from "crypto";
 
 const JWT_SECRET = process.env.JWT_SECRET || "archivist-secret-change-me";
 const UPLOAD_DIR = path.join(process.cwd(), "uploads");
@@ -111,6 +113,43 @@ async function startServer() {
     res.json({ success: true, message: "Inquiry received. The archivist will respond shortly." });
   });
 
+  // ── Public: Subscribe ──
+  app.post("/api/subscribe", async (req, res) => {
+    const { email } = req.body;
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return res.status(400).json({ error: "Valid email required" });
+    }
+    try {
+      const token = crypto.randomBytes(32).toString("hex");
+      const result = queries.addSubscriber(email.toLowerCase().trim(), token);
+      if (result.already && result.verified) {
+        return res.json({ message: "You're already subscribed." });
+      }
+      await sendConfirmationEmail(email, token);
+      res.json({ message: "Check your inbox to confirm your subscription." });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message || "Subscription failed" });
+    }
+  });
+
+  app.get("/api/subscribe/verify/:token", (req, res) => {
+    const result = queries.verifySubscriber(req.params.token);
+    if (!result) {
+      return res.status(400).send(`<html><body style="font-family:system-ui;display:flex;align-items:center;justify-content:center;min-height:100vh;background:#fefcf4;color:#36392d;"><div style="text-align:center"><h1>Invalid link.</h1><p>This verification link may have expired.</p></div></body></html>`);
+    }
+    const siteUrl = process.env.SITE_URL || `http://localhost:${PORT}`;
+    res.send(`<html><body style="font-family:system-ui;display:flex;align-items:center;justify-content:center;min-height:100vh;background:#fefcf4;color:#36392d;"><div style="text-align:center"><h1>Subscription confirmed.</h1><p>You'll receive dispatches when new content is published.</p><a href="${siteUrl}" style="display:inline-block;margin-top:24px;background:#5e5e5e;color:#f9f7f7;padding:12px 24px;text-decoration:none;font-size:12px;letter-spacing:0.1em;text-transform:uppercase;">Return to Archive</a></div></body></html>`);
+  });
+
+  app.get("/api/subscribe/unsubscribe/:token", (req, res) => {
+    const result = queries.unsubscribe(req.params.token);
+    if (!result) {
+      return res.status(400).send(`<html><body style="font-family:system-ui;display:flex;align-items:center;justify-content:center;min-height:100vh;background:#fefcf4;color:#36392d;"><div style="text-align:center"><h1>Invalid link.</h1></div></body></html>`);
+    }
+    const siteUrl = process.env.SITE_URL || `http://localhost:${PORT}`;
+    res.send(`<html><body style="font-family:system-ui;display:flex;align-items:center;justify-content:center;min-height:100vh;background:#fefcf4;color:#36392d;"><div style="text-align:center"><h1>Unsubscribed.</h1><p>You won't receive any more dispatches.</p><a href="${siteUrl}" style="display:inline-block;margin-top:24px;background:#5e5e5e;color:#f9f7f7;padding:12px 24px;text-decoration:none;font-size:12px;letter-spacing:0.1em;text-transform:uppercase;">Return to Archive</a></div></body></html>`);
+  });
+
   // ── Admin: Publications CRUD ──
   app.post("/api/publications", authMiddleware, (req, res) => {
     try {
@@ -188,6 +227,41 @@ async function startServer() {
     } catch (e: any) {
       res.status(400).json({ error: e.message });
     }
+  });
+
+  // ── Admin: Subscribers ──
+  app.get("/api/admin/subscribers", authMiddleware, (_, res) => {
+    res.json({
+      subscribers: queries.getAllSubscribers(),
+      activeCount: queries.getSubscriberCount(),
+      emailConfigured: isEmailConfigured(),
+    });
+  });
+
+  app.post("/api/admin/notify", authMiddleware, async (req, res) => {
+    const { title, type, excerpt, contentId } = req.body;
+    if (!title) return res.status(400).json({ error: "Title is required" });
+
+    const subs = queries.getVerifiedSubscribers() as any[];
+    if (subs.length === 0) return res.json({ sent: 0, message: "No active subscribers" });
+
+    const contentPath = type === 'publication' ? 'publications' : 'blogs';
+    const siteUrl = process.env.SITE_URL || `http://localhost:${PORT}`;
+    const url = `${siteUrl}/${contentPath}/${contentId}`;
+
+    let sent = 0;
+    let errors = 0;
+    for (const sub of subs) {
+      try {
+        const subRow = queries.getAllSubscribers().find((s: any) => s.id === sub.id) as any;
+        await sendNotificationEmail(sub.email, subRow?.token || '', { title, type: type || 'post', excerpt: excerpt || '', url });
+        sent++;
+      } catch {
+        errors++;
+      }
+    }
+
+    res.json({ sent, errors, total: subs.length });
   });
 
   // ── Admin: File Upload ──
