@@ -107,7 +107,41 @@ export function initDb() {
       contacts TEXT NOT NULL DEFAULT '[]',
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
+
+    CREATE TABLE IF NOT EXISTS paper_digests (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      digest_date TEXT NOT NULL UNIQUE,
+      papers TEXT NOT NULL DEFAULT '[]',
+      email_sent INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS paper_selections (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      digest_id INTEGER NOT NULL,
+      paper_index INTEGER NOT NULL,
+      arxiv_id TEXT NOT NULL,
+      title TEXT NOT NULL,
+      selection_token TEXT NOT NULL UNIQUE,
+      status TEXT NOT NULL DEFAULT 'pending',
+      paper_content TEXT DEFAULT NULL,
+      ai_reading TEXT DEFAULT NULL,
+      draft_blog_id INTEGER DEFAULT NULL,
+      error_message TEXT DEFAULT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (digest_id) REFERENCES paper_digests(id),
+      FOREIGN KEY (draft_blog_id) REFERENCES blogs(id)
+    );
   `);
+
+  // Add is_draft and source_paper_id columns to blogs if they don't exist
+  try {
+    db.exec(`ALTER TABLE blogs ADD COLUMN is_draft INTEGER NOT NULL DEFAULT 0`);
+  } catch { /* column already exists */ }
+  try {
+    db.exec(`ALTER TABLE blogs ADD COLUMN source_paper_id TEXT DEFAULT NULL`);
+  } catch { /* column already exists */ }
 
   const userCount = db.prepare('SELECT COUNT(*) as count FROM admin_users').get() as { count: number };
   if (userCount.count === 0) {

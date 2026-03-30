@@ -12,6 +12,7 @@
     "lint": "tsc --noEmit"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.80.0",
     "@aws-sdk/client-s3": "^3.1014.0",
     "@flydotio/litestream": "^1.0.1",
     "@google/genai": "^1.29.0",
@@ -34,6 +35,9 @@
     "lucide-react": "^0.546.0",
     "motion": "^12.23.24",
     "multer": "^2.1.1",
+    "node-cron": "^4.2.1",
+    "nodemailer": "^8.0.4",
+    "pdf-parse": "^2.4.5",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-router-dom": "^7.13.1",
@@ -49,6 +53,9 @@
     "@types/jsonwebtoken": "^9.0.10",
     "@types/multer": "^2.1.0",
     "@types/node": "^22.14.0",
+    "@types/node-cron": "^3.0.11",
+    "@types/nodemailer": "^7.0.11",
+    "@types/pdf-parse": "^1.1.5",
     "autoprefixer": "^10.4.21",
     "tailwindcss": "^4.1.14",
     "tsx": "^4.21.0",

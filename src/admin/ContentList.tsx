@@ -12,10 +12,15 @@ export function ContentList() {
   const publicBase = contentType === 'publication' ? '/publications' : '/blogs';
 
   const [items, setItems] = useState<any[]>([]);
+  const [showDrafts, setShowDrafts] = useState(false);
 
   useEffect(() => {
-    fetch(apiBase).then(r => r.json()).then(setItems);
-  }, [apiBase]);
+    if (contentType === 'blog' && showDrafts) {
+      authFetch('/api/admin/drafts').then(r => r.json()).then(setItems);
+    } else {
+      fetch(apiBase).then(r => r.json()).then(setItems);
+    }
+  }, [apiBase, showDrafts, contentType]);
 
   const handleDelete = async (id: string) => {
     if (!confirm('Delete this item?')) return;
@@ -34,13 +39,31 @@ export function ContentList() {
             {contentType === 'publication' ? 'Publications' : 'Blog Posts'}
           </h1>
         </div>
-        <Link
-          to={`${adminBase}/new`}
-          className="flex items-center gap-2 bg-primary text-on-primary px-6 py-3 font-mono text-[10px] uppercase tracking-widest hover:bg-primary-dim transition-colors"
-        >
-          <Plus size={12} />
-          New {contentType === 'publication' ? 'Publication' : 'Post'}
-        </Link>
+        <div className="flex items-center gap-3">
+          {contentType === 'blog' && (
+            <div className="flex bg-surface-container-lowest">
+              <button
+                onClick={() => setShowDrafts(false)}
+                className={`px-4 py-3 font-mono text-[10px] uppercase tracking-widest transition-colors ${!showDrafts ? 'bg-primary text-on-primary' : 'text-on-surface-variant hover:text-on-surface'}`}
+              >
+                Published
+              </button>
+              <button
+                onClick={() => setShowDrafts(true)}
+                className={`px-4 py-3 font-mono text-[10px] uppercase tracking-widest transition-colors ${showDrafts ? 'bg-primary text-on-primary' : 'text-on-surface-variant hover:text-on-surface'}`}
+              >
+                Drafts
+              </button>
+            </div>
+          )}
+          <Link
+            to={`${adminBase}/new`}
+            className="flex items-center gap-2 bg-primary text-on-primary px-6 py-3 font-mono text-[10px] uppercase tracking-widest hover:bg-primary-dim transition-colors"
+          >
+            <Plus size={12} />
+            New {contentType === 'publication' ? 'Publication' : 'Post'}
+          </Link>
+        </div>
       </header>
 
       <div className="space-y-2">

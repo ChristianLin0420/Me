@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { ArrowLeft, Save, Trash2, Eye, Bell } from 'lucide-react';
+import { ArrowLeft, Save, Trash2, Eye, Bell, Send } from 'lucide-react';
 import { ContentBlock } from '@/src/types';
 import { BlockEditor } from './BlockEditor';
 import { useAuth } from './useAuth';
@@ -60,6 +60,7 @@ export function ContentEditor() {
   const [notifySubs, setNotifySubs] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [isDraft, setIsDraft] = useState(false);
 
   useEffect(() => {
     if (isNew) return;
@@ -92,6 +93,16 @@ export function ContentEditor() {
         });
       })
       .catch(() => setError('Failed to load content'));
+
+    // Check if this is a draft blog
+    if (contentType === 'blog' && !isNew) {
+      authFetch('/api/admin/drafts')
+        .then(r => r.json())
+        .then((drafts: any[]) => {
+          setIsDraft(drafts.some((d: any) => String(d.id) === String(id)));
+        })
+        .catch(() => {});
+    }
   }, [apiBase, id, isNew]);
 
   const uploadImage = useCallback(async (file: File): Promise<string> => {
@@ -201,8 +212,11 @@ export function ContentEditor() {
             <ArrowLeft size={20} />
           </button>
           <div>
-            <div className="font-mono text-[10px] tracking-widest uppercase text-on-surface-variant">
+            <div className="font-mono text-[10px] tracking-widest uppercase text-on-surface-variant flex items-center gap-2">
               {contentType} / {isNew ? 'NEW' : `EDIT #${id}`}
+              {isDraft && (
+                <span className="bg-amber-100 text-amber-800 px-2 py-0.5 text-[9px] font-bold">DRAFT</span>
+              )}
             </div>
             <h1 className="font-headline text-2xl font-bold tracking-tight">
               {isNew ? `New ${contentType === 'publication' ? 'Publication' : 'Blog Post'}` : form.title || 'Untitled'}
@@ -239,6 +253,20 @@ export function ContentEditor() {
             <Bell size={12} className="text-on-surface-variant" />
             <span className="font-mono text-[10px] uppercase tracking-widest text-on-surface-variant">Notify</span>
           </label>
+          {isDraft && (
+            <button
+              onClick={async () => {
+                try {
+                  await authFetch(`/api/admin/drafts/${id}/publish`, { method: 'POST' });
+                  setIsDraft(false);
+                  setSuccess('Published successfully!');
+                } catch { setError('Publish failed'); }
+              }}
+              className="flex items-center gap-2 bg-green-600 text-white px-6 py-2 font-mono text-[10px] uppercase tracking-widest hover:bg-green-700 transition-colors"
+            >
+              <Send size={12} /> Publish
+            </button>
+          )}
           <button
             onClick={handleSave}
             disabled={saving}

@@ -1,33 +1,51 @@
-const RESEND_API_KEY = process.env.RESEND_API_KEY;
+import nodemailer from 'nodemailer';
+
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+const SMTP_HOST = process.env.SMTP_HOST || 'smtp.gmail.com';
+const SMTP_PORT = parseInt(process.env.SMTP_PORT || '587');
+const SMTP_USER = process.env.SMTP_USER || '';
+const SMTP_PASS = process.env.SMTP_PASS || '';
 const SITE_URL = process.env.SITE_URL || 'https://christian-lin-me.fly.dev';
-const FROM_EMAIL = process.env.FROM_EMAIL || 'onboarding@resend.dev';
+const FROM_EMAIL = process.env.FROM_EMAIL || SMTP_USER;
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || '';
 
+const transporter = nodemailer.createTransport({
+  host: SMTP_HOST,
+  port: SMTP_PORT,
+  secure: SMTP_PORT === 465,
+  auth: {
+    user: SMTP_USER,
+    pass: SMTP_PASS,
+  },
+});
+
 export function isEmailConfigured(): boolean {
-  return !!RESEND_API_KEY;
+  return !!(SMTP_USER && SMTP_PASS);
 }
 
 async function sendEmail(to: string, subject: string, html: string) {
-  if (!RESEND_API_KEY) {
-    console.log(`[Email] Resend not configured. Would send to ${to}: ${subject}`);
+  if (!SMTP_USER || !SMTP_PASS) {
+    console.log(`[Email] SMTP not configured. Would send to ${to}: ${subject}`);
     return { success: true, mock: true };
   }
 
-  const res = await fetch('https://api.resend.com/emails', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${RESEND_API_KEY}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ from: FROM_EMAIL, to, subject, html }),
+  const info = await transporter.sendMail({
+    from: FROM_EMAIL,
+    to,
+    subject,
+    html,
   });
 
-  if (!res.ok) {
-    const err = await res.json();
-    throw new Error(err.message || 'Email send failed');
-  }
-
-  return await res.json();
+  console.log(`[Email] Sent to ${to}: ${subject} (${info.messageId})`);
+  return { success: true, messageId: info.messageId };
 }
 
 function emailWrapper(content: string): string {
@@ -61,16 +79,16 @@ export async function sendContactEmail(name: string, email: string, message: str
       NEW CONTACT INQUIRY
     </div>
     <h1 style="font-family:system-ui,sans-serif;font-size:24px;font-weight:700;color:#36392d;letter-spacing:-0.02em;margin:0 0 24px;">
-      Message from ${name}
+      Message from ${escapeHtml(name)}
     </h1>
     <div style="background:#fbfaef;padding:24px;margin-bottom:24px;">
-      <p style="font-size:14px;line-height:1.8;color:#36392d;margin:0;white-space:pre-wrap;">${message}</p>
+      <p style="font-size:14px;line-height:1.8;color:#36392d;margin:0;white-space:pre-wrap;">${escapeHtml(message)}</p>
     </div>
     <div style="font-size:13px;color:#636658;">
-      <p style="margin:0 0 4px;"><strong>From:</strong> ${name}</p>
-      <p style="margin:0 0 4px;"><strong>Email:</strong> <a href="mailto:${email}" style="color:#5e5e5e;">${email}</a></p>
+      <p style="margin:0 0 4px;"><strong>From:</strong> ${escapeHtml(name)}</p>
+      <p style="margin:0 0 4px;"><strong>Email:</strong> <a href="mailto:${encodeURI(email)}" style="color:#5e5e5e;">${escapeHtml(email)}</a></p>
     </div>
-    <a href="mailto:${email}?subject=Re: Your inquiry — The Digital Archivist" style="display:inline-block;margin-top:24px;background:#5e5e5e;color:#f9f7f7;font-family:'Courier New',monospace;font-size:11px;letter-spacing:0.2em;text-transform:uppercase;text-decoration:none;padding:14px 32px;">
+    <a href="mailto:${encodeURI(email)}?subject=Re: Your inquiry — The Digital Archivist" style="display:inline-block;margin-top:24px;background:#5e5e5e;color:#f9f7f7;font-family:'Courier New',monospace;font-size:11px;letter-spacing:0.2em;text-transform:uppercase;text-decoration:none;padding:14px 32px;">
       REPLY_TO_SENDER
     </a>
   `);
@@ -100,6 +118,86 @@ export async function sendConfirmationEmail(email: string, token: string) {
   return sendEmail(email, 'Confirm your subscription — The Digital Archivist', html);
 }
 
+export async function sendDigestEmail(
+  to: string,
+  papers: Array<{
+    title: string;
+    authors: string[];
+    abstract: string;
+    citationCount: number;
+    selectionToken: string;
+    venue: string;
+  }>
+) {
+  const today = new Date().toISOString().split('T')[0].replace(/-/g, '.');
+
+  const paperCards = papers.map((paper, i) => {
+    const selectUrl = `${SITE_URL}/api/papers/select/${paper.selectionToken}`;
+    const abstractSnippet = paper.abstract.length > 150
+      ? paper.abstract.slice(0, 150) + '...'
+      : paper.abstract;
+    const authorsText = paper.authors.slice(0, 3).join(', ') + (paper.authors.length > 3 ? ' et al.' : '');
+
+    return `
+      <div style="padding:20px 0;${i < papers.length - 1 ? 'border-bottom:1px solid #e8ead8;' : ''}">
+        <div style="font-family:'Courier New',monospace;font-size:10px;letter-spacing:0.15em;text-transform:uppercase;color:#b9bbaa;margin-bottom:6px;">
+          #${String(i + 1).padStart(2, '0')} ${paper.venue ? `/ ${escapeHtml(paper.venue.slice(0, 40))}` : ''} / ${paper.citationCount} CITATIONS
+        </div>
+        <h2 style="font-family:system-ui,sans-serif;font-size:16px;font-weight:700;color:#36392d;letter-spacing:-0.01em;margin:0 0 6px;line-height:1.3;">
+          ${escapeHtml(paper.title)}
+        </h2>
+        <p style="font-size:12px;color:#636658;margin:0 0 8px;font-style:italic;">${escapeHtml(authorsText)}</p>
+        <p style="font-size:13px;line-height:1.6;color:#636658;margin:0 0 12px;">${escapeHtml(abstractSnippet)}</p>
+        <a href="${selectUrl}" style="display:inline-block;background:#5e5e5e;color:#f9f7f7;font-family:'Courier New',monospace;font-size:10px;letter-spacing:0.2em;text-transform:uppercase;text-decoration:none;padding:10px 24px;">
+          READ_THIS_PAPER &rarr;
+        </a>
+      </div>
+    `;
+  }).join('');
+
+  const html = emailWrapper(`
+    <div style="font-family:'Courier New',monospace;font-size:10px;letter-spacing:0.15em;text-transform:uppercase;color:#636658;margin-bottom:8px;">
+      DAILY RESEARCH DIGEST &mdash; ${today}
+    </div>
+    <h1 style="font-family:system-ui,sans-serif;font-size:24px;font-weight:700;color:#36392d;letter-spacing:-0.02em;margin:0 0 8px;">
+      Today's Top Papers
+    </h1>
+    <p style="font-size:14px;line-height:1.7;color:#636658;margin:0 0 24px;">
+      ${papers.length} papers curated from your research areas. Click any paper to generate a detailed reading and blog draft.
+    </p>
+    ${paperCards}
+  `);
+
+  return sendEmail(to, `Daily Research Digest \u2014 ${today}`, html);
+}
+
+export async function sendDraftReadyEmail(
+  to: string,
+  paper: { title: string; blogId: number }
+) {
+  const editUrl = `${SITE_URL}/admin/blogs/${paper.blogId}`;
+
+  const html = emailWrapper(`
+    <div style="font-family:'Courier New',monospace;font-size:10px;letter-spacing:0.15em;text-transform:uppercase;color:#636658;margin-bottom:8px;">
+      DRAFT READY FOR REVIEW
+    </div>
+    <h1 style="font-family:system-ui,sans-serif;font-size:24px;font-weight:700;color:#36392d;letter-spacing:-0.02em;margin:0 0 16px;">
+      Your paper review draft is ready.
+    </h1>
+    <p style="font-size:14px;line-height:1.7;color:#636658;margin:0 0 8px;">
+      <strong>${escapeHtml(paper.title)}</strong>
+    </p>
+    <p style="font-size:14px;line-height:1.7;color:#636658;margin:0 0 28px;">
+      The AI has read the full paper and generated a structured blog draft. Review and edit it in your admin panel.
+    </p>
+    <a href="${editUrl}" style="display:inline-block;background:#5e5e5e;color:#f9f7f7;font-family:'Courier New',monospace;font-size:11px;letter-spacing:0.2em;text-transform:uppercase;text-decoration:none;padding:14px 32px;">
+      EDIT_DRAFT &rarr;
+    </a>
+  `);
+
+  return sendEmail(to, `Draft Ready: ${paper.title} \u2014 The Digital Archivist`, html);
+}
+
 export async function sendNotificationEmail(
   email: string,
   token: string,
@@ -109,13 +207,13 @@ export async function sendNotificationEmail(
 
   const html = emailWrapper(`
     <div style="font-family:'Courier New',monospace;font-size:10px;letter-spacing:0.15em;text-transform:uppercase;color:#636658;margin-bottom:8px;">
-      NEW ${post.type.toUpperCase()} PUBLISHED
+      NEW ${escapeHtml(post.type.toUpperCase())} PUBLISHED
     </div>
     <h1 style="font-family:system-ui,sans-serif;font-size:24px;font-weight:700;color:#36392d;letter-spacing:-0.02em;margin:0 0 16px;">
-      ${post.title}
+      ${escapeHtml(post.title)}
     </h1>
     <p style="font-size:14px;line-height:1.7;color:#636658;margin:0 0 28px;">
-      ${post.excerpt}
+      ${escapeHtml(post.excerpt)}
     </p>
     <a href="${post.url}" style="display:inline-block;background:#5e5e5e;color:#f9f7f7;font-family:'Courier New',monospace;font-size:11px;letter-spacing:0.2em;text-transform:uppercase;text-decoration:none;padding:14px 32px;">
       READ_FULL_${post.type.toUpperCase()}

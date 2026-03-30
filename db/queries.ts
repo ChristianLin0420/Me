@@ -106,7 +106,7 @@ export function getAllBlogs() {
   const rows = getDb().prepare(`
     SELECT id, date, id_tag, tags, title, excerpt, equation, image,
            author_name, author_role, author_avatar
-    FROM blogs ORDER BY date DESC
+    FROM blogs WHERE is_draft = 0 ORDER BY date DESC
   `).all();
   return rows.map((r: any) => ({
     ...parseJsonFields(r, ['tags']),
@@ -269,7 +269,7 @@ export function getVerifiedSubscribers() {
 }
 
 export function getAllSubscribers() {
-  return getDb().prepare('SELECT id, email, verified, subscribed_at, unsubscribed_at FROM subscribers ORDER BY subscribed_at DESC').all();
+  return getDb().prepare('SELECT id, email, verified, token, subscribed_at, unsubscribed_at FROM subscribers ORDER BY subscribed_at DESC').all();
 }
 
 export function getSubscriberCount() {
@@ -290,6 +290,166 @@ export function getProfile() {
   if (!row) return null;
   return parseJsonFields(row, ['contacts']);
 }
+
+// ── Paper Digests ──
+
+export function createDigest(digestDate: string, papers: any[]) {
+  const db = getDb();
+  const result = db.prepare(
+    'INSERT INTO paper_digests (digest_date, papers) VALUES (?, ?)'
+  ).run(digestDate, JSON.stringify(papers));
+  return { id: Number(result.lastInsertRowid), digest_date: digestDate, papers };
+}
+
+export function getDigest(id: number) {
+  const row = getDb().prepare('SELECT * FROM paper_digests WHERE id = ?').get(id) as any;
+  if (!row) return null;
+  return parseJsonFields(row, ['papers']);
+}
+
+export function getDigestByDate(digestDate: string) {
+  const row = getDb().prepare('SELECT * FROM paper_digests WHERE digest_date = ?').get(digestDate) as any;
+  if (!row) return null;
+  return parseJsonFields(row, ['papers']);
+}
+
+export function getAllDigests() {
+  const rows = getDb().prepare('SELECT id, digest_date, email_sent, created_at FROM paper_digests ORDER BY digest_date DESC').all();
+  return rows;
+}
+
+export function markDigestEmailSent(id: number) {
+  getDb().prepare('UPDATE paper_digests SET email_sent = 1 WHERE id = ?').run(id);
+}
+
+export function deleteDigest(id: number) {
+  const db = getDb();
+  db.prepare('DELETE FROM paper_selections WHERE digest_id = ?').run(id);
+  db.prepare('DELETE FROM paper_digests WHERE id = ?').run(id);
+}
+
+export function createPaperSelection(data: {
+  digest_id: number;
+  paper_index: number;
+  arxiv_id: string;
+  title: string;
+  selection_token: string;
+}) {
+  const db = getDb();
+  const result = db.prepare(`
+    INSERT INTO paper_selections (digest_id, paper_index, arxiv_id, title, selection_token)
+    VALUES (?, ?, ?, ?, ?)
+  `).run(data.digest_id, data.paper_index, data.arxiv_id, data.title, data.selection_token);
+  return { id: Number(result.lastInsertRowid), ...data, status: 'pending' };
+}
+
+function safeJsonParse(str: string | null | undefined, fallback: any = null): any {
+  if (!str) return fallback;
+  try {
+    return JSON.parse(str);
+  } catch {
+    console.error('[DB] Failed to parse JSON field:', str?.slice(0, 200));
+    return fallback;
+  }
+}
+
+export function getPaperSelectionByToken(token: string) {
+  const row = getDb().prepare('SELECT * FROM paper_selections WHERE selection_token = ?').get(token) as any;
+  if (!row) return null;
+  return {
+    ...row,
+    ai_reading: safeJsonParse(row.ai_reading),
+  };
+}
+
+export function getPaperSelectionById(id: number) {
+  const row = getDb().prepare('SELECT * FROM paper_selections WHERE id = ?').get(id) as any;
+  if (!row) return null;
+  return {
+    ...row,
+    ai_reading: safeJsonParse(row.ai_reading),
+  };
+}
+
+export function getSelectionsByDigestId(digestId: number) {
+  const rows = getDb().prepare('SELECT * FROM paper_selections WHERE digest_id = ? ORDER BY paper_index ASC').all(digestId) as any[];
+  return rows.map(row => ({
+    ...row,
+    ai_reading: safeJsonParse(row.ai_reading),
+  }));
+}
+
+export function updatePaperSelectionStatus(id: number, status: string, extra?: {
+  paper_content?: string;
+  ai_reading?: any;
+  draft_blog_id?: number;
+  error_message?: string;
+}) {
+  const db = getDb();
+  let sql = `UPDATE paper_selections SET status = ?, updated_at = datetime('now')`;
+  const params: any[] = [status];
+
+  if (extra?.paper_content !== undefined) {
+    sql += ', paper_content = ?';
+    params.push(extra.paper_content);
+  }
+  if (extra?.ai_reading !== undefined) {
+    sql += ', ai_reading = ?';
+    params.push(JSON.stringify(extra.ai_reading));
+  }
+  if (extra?.draft_blog_id !== undefined) {
+    sql += ', draft_blog_id = ?';
+    params.push(extra.draft_blog_id);
+  }
+  if (extra?.error_message !== undefined) {
+    sql += ', error_message = ?';
+    params.push(extra.error_message);
+  }
+
+  sql += ' WHERE id = ?';
+  params.push(id);
+  db.prepare(sql).run(...params);
+}
+
+export function getAllDraftBlogs() {
+  const rows = getDb().prepare(`
+    SELECT id, date, id_tag, tags, title, excerpt, equation, image,
+           author_name, author_role, author_avatar, source_paper_id
+    FROM blogs WHERE is_draft = 1 ORDER BY created_at DESC
+  `).all();
+  return rows.map((r: any) => ({
+    ...parseJsonFields(r, ['tags']),
+    id: String(r.id),
+    author: r.author_name ? { name: r.author_name, role: r.author_role, avatar: r.author_avatar } : undefined,
+  }));
+}
+
+export function publishDraft(blogId: number) {
+  getDb().prepare('UPDATE blogs SET is_draft = 0, updated_at = datetime(\'now\') WHERE id = ?').run(blogId);
+  return getBlogById(blogId);
+}
+
+export function createDraftBlog(data: any) {
+  const db = getDb();
+  const result = db.prepare(`
+    INSERT INTO blogs (date, id_tag, tags, title, excerpt, equation, image, author_name, author_role, author_avatar, category, volume, keywords, hero_image, hero_caption, abstract, tools, sections, is_draft, source_paper_id)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
+  `).run(
+    data.date, data.id_tag || '',
+    JSON.stringify(data.tags || []), data.title, data.excerpt || '',
+    data.equation || '', data.image || '',
+    data.author_name || '', data.author_role || '', data.author_avatar || '',
+    data.category || 'Paper Review', data.volume || data.id_tag || '',
+    JSON.stringify(data.keywords || []),
+    data.hero_image || '', data.hero_caption || '',
+    data.abstract || '', JSON.stringify(data.tools || []),
+    JSON.stringify(data.sections || []),
+    data.source_paper_id || null
+  );
+  return getBlogById(Number(result.lastInsertRowid));
+}
+
+// ── Profile ──
 
 export function updateProfile(data: any) {
   const db = getDb();

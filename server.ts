@@ -1,3 +1,4 @@
+import "dotenv/config";
 import express from "express";
 import { createServer as createViteServer } from "vite";
 import path from "path";
@@ -9,10 +10,20 @@ import fs from "fs";
 import { initDb, seedDb } from "./db/index.js";
 import * as queries from "./db/queries.js";
 import { uploadToR2, isCloudStorageEnabled } from "./lib/storage.js";
-import { sendConfirmationEmail, sendNotificationEmail, sendContactEmail, isEmailConfigured } from "./lib/email.js";
+import { sendConfirmationEmail, sendNotificationEmail, sendContactEmail, sendDigestEmail, isEmailConfigured } from "./lib/email.js";
+import { initScheduler, runDailyDigest, processPaperSelection } from "./lib/scheduler.js";
 import crypto from "crypto";
 
 const JWT_SECRET = process.env.JWT_SECRET || "archivist-secret-change-me";
+
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
 const UPLOAD_DIR = path.join(process.cwd(), "uploads");
 
 if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
@@ -66,6 +77,9 @@ async function startServer() {
   if (process.env.NODE_ENV !== 'production') {
     seedDb();
   }
+
+  // Initialize paper digest scheduler
+  initScheduler();
 
   app.use("/uploads", express.static(UPLOAD_DIR));
 
@@ -260,12 +274,15 @@ async function startServer() {
     const siteUrl = process.env.SITE_URL || `http://localhost:${PORT}`;
     const url = `${siteUrl}/${contentPath}/${contentId}`;
 
+    const allSubs = queries.getAllSubscribers() as any[];
+    const tokenMap = new Map(allSubs.map((s: any) => [s.id, s.token]));
+
     let sent = 0;
     let errors = 0;
     for (const sub of subs) {
       try {
-        const subRow = queries.getAllSubscribers().find((s: any) => s.id === sub.id) as any;
-        await sendNotificationEmail(sub.email, subRow?.token || '', { title, type: type || 'post', excerpt: excerpt || '', url });
+        const token = tokenMap.get(sub.id) || '';
+        await sendNotificationEmail(sub.email, token, { title, type: type || 'post', excerpt: excerpt || '', url });
         sent++;
       } catch {
         errors++;
@@ -306,6 +323,136 @@ async function startServer() {
       res.json(results);
     } catch (e: any) {
       res.status(500).json({ error: e.message || "Upload failed" });
+    }
+  });
+
+  // ── Public: Paper Selection (from email link) ──
+  app.get("/api/papers/select/:token", (req, res) => {
+    const selection = queries.getPaperSelectionByToken(req.params.token);
+    if (!selection) {
+      return res.status(404).send(`<html><body style="font-family:system-ui;display:flex;align-items:center;justify-content:center;min-height:100vh;background:#fefcf4;color:#36392d;"><div style="text-align:center"><h1>Invalid link.</h1><p>This selection link is invalid or has expired.</p></div></body></html>`);
+    }
+
+    if (selection.status !== 'pending' && selection.status !== 'failed') {
+      // Check if processing is stuck (>10 min) and allow retry
+      if (selection.status === 'processing') {
+        const updatedAt = new Date(selection.updated_at).getTime();
+        const elapsed = Date.now() - updatedAt;
+        if (elapsed >= 10 * 60 * 1000) {
+          // Stuck - allow retry by falling through
+          console.log(`[PAPER] Selection ${selection.id} stuck in processing for ${Math.round(elapsed / 60000)} min, allowing re-select.`);
+        } else {
+          return res.send(`<html><body style="font-family:system-ui;display:flex;align-items:center;justify-content:center;min-height:100vh;background:#fefcf4;color:#36392d;"><div style="text-align:center"><h1>${escapeHtml(selection.title)}</h1><p>This paper is currently being processed. You'll receive an email when the draft is ready.</p></div></body></html>`);
+        }
+      } else {
+        const siteUrl = process.env.SITE_URL || `http://localhost:${PORT}`;
+        const message = selection.status === 'draft_created'
+          ? `<p>A blog draft has already been created for this paper.</p><a href="${siteUrl}/admin/blogs/${selection.draft_blog_id}" style="display:inline-block;margin-top:24px;background:#5e5e5e;color:#f9f7f7;padding:12px 24px;text-decoration:none;font-size:12px;letter-spacing:0.1em;text-transform:uppercase;">Edit Draft</a>`
+          : `<p>This paper has status: ${escapeHtml(selection.status)}.</p>`;
+        return res.send(`<html><body style="font-family:system-ui;display:flex;align-items:center;justify-content:center;min-height:100vh;background:#fefcf4;color:#36392d;"><div style="text-align:center"><h1>${escapeHtml(selection.title)}</h1>${message}</div></body></html>`);
+      }
+    }
+
+    // Return confirmation page immediately
+    res.send(`<html><body style="font-family:system-ui;display:flex;align-items:center;justify-content:center;min-height:100vh;background:#fefcf4;color:#36392d;"><div style="text-align:center"><h1>Paper selected!</h1><p><strong>${escapeHtml(selection.title)}</strong></p><p>The AI is now reading the full paper. You'll receive an email when your blog draft is ready.</p></div></body></html>`);
+
+    // Process asynchronously
+    processPaperSelection(selection.id).catch(err => {
+      console.error('[PAPER] Async processing failed:', err);
+    });
+  });
+
+  // ── Admin: Paper Digest ──
+  app.get("/api/admin/digests", authMiddleware, (_, res) => {
+    const digests = queries.getAllDigests();
+    res.json(digests);
+  });
+
+  app.get("/api/admin/digests/:id", authMiddleware, (req, res) => {
+    try {
+      const digest = queries.getDigest(Number(req.params.id));
+      if (!digest) return res.status(404).json({ error: "Digest not found" });
+      const selections = queries.getSelectionsByDigestId(digest.id);
+      res.json({ ...digest, selections });
+    } catch (e: any) {
+      console.error('[DIGEST] Error loading digest:', e);
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.get("/api/admin/drafts", authMiddleware, (_, res) => {
+    res.json(queries.getAllDraftBlogs());
+  });
+
+  app.post("/api/admin/drafts/:id/publish", authMiddleware, (req, res) => {
+    const blog = queries.publishDraft(Number(req.params.id));
+    if (!blog) return res.status(404).json({ error: "Draft not found" });
+    res.json(blog);
+  });
+
+  app.post("/api/admin/papers/:id/reprocess", authMiddleware, (req, res) => {
+    const selection = queries.getPaperSelectionById(Number(req.params.id));
+    if (!selection) return res.status(404).json({ error: "Selection not found" });
+
+    // Allow reprocessing of pending, failed, or stuck processing states
+    if (selection.status === 'processing') {
+      const updatedAt = new Date(selection.updated_at).getTime();
+      const elapsed = Date.now() - updatedAt;
+      if (elapsed < 10 * 60 * 1000) {
+        return res.status(409).json({
+          error: `Paper is currently processing (started ${Math.round(elapsed / 1000)}s ago). Wait or retry after 10 min.`
+        });
+      }
+    }
+
+    queries.updatePaperSelectionStatus(selection.id, 'pending', { error_message: '' });
+    res.json({ message: "Reprocessing started" });
+
+    processPaperSelection(selection.id).catch(err => {
+      console.error('[PAPER] Reprocessing failed:', err);
+    });
+  });
+
+  app.post("/api/admin/digest/trigger", authMiddleware, async (_, res) => {
+    try {
+      await runDailyDigest();
+      res.json({ message: "Digest triggered and email sent", success: true });
+    } catch (err: any) {
+      console.error('[PAPER] Manual digest trigger failed:', err);
+      res.status(500).json({ error: err.message || "Digest trigger failed" });
+    }
+  });
+
+  app.delete("/api/admin/digests/:id", authMiddleware, (req, res) => {
+    const digest = queries.getDigest(Number(req.params.id));
+    if (!digest) return res.status(404).json({ error: "Digest not found" });
+    queries.deleteDigest(Number(req.params.id));
+    res.json({ success: true });
+  });
+
+  app.post("/api/admin/digests/:id/resend", authMiddleware, async (req, res) => {
+    try {
+      const digest = queries.getDigest(Number(req.params.id));
+      if (!digest) return res.status(404).json({ error: "Digest not found" });
+      const selections = queries.getSelectionsByDigestId(digest.id);
+      const papersForEmail = selections.map((sel: any) => {
+        const paperData = ((digest.papers as any[]) || [])[sel.paper_index] || {};
+        return {
+          title: sel.title,
+          authors: paperData.authors || [],
+          abstract: paperData.abstract || '',
+          citationCount: paperData.citationCount || 0,
+          venue: paperData.venue || '',
+          selectionToken: sel.selection_token,
+        };
+      });
+      const digestEmail = process.env.DIGEST_EMAIL || process.env.ADMIN_EMAIL || '';
+      if (!digestEmail) return res.status(400).json({ error: "No DIGEST_EMAIL configured" });
+      await sendDigestEmail(digestEmail, papersForEmail);
+      queries.markDigestEmailSent(digest.id);
+      res.json({ success: true, message: `Email resent to ${digestEmail}` });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message || "Failed to resend email" });
     }
   });
 

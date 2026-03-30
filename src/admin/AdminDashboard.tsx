@@ -1,17 +1,20 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { FileText, BookOpen, Image, Plus } from 'lucide-react';
+import { FileText, BookOpen, Image, Plus, Newspaper } from 'lucide-react';
 
 export function AdminDashboard() {
-  const [counts, setCounts] = useState({ publications: 0, blogs: 0, gallery: 0 });
+  const [counts, setCounts] = useState({ publications: 0, blogs: 0, gallery: 0, drafts: 0 });
 
   useEffect(() => {
+    const token = localStorage.getItem('admin_token');
+    const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
     Promise.all([
       fetch('/api/publications').then(r => r.json()),
       fetch('/api/blogs').then(r => r.json()),
       fetch('/api/gallery').then(r => r.json()),
-    ]).then(([pubs, blogs, gallery]) => {
-      setCounts({ publications: pubs.length, blogs: blogs.length, gallery: gallery.length });
+      fetch('/api/admin/drafts', { headers }).then(r => r.ok ? r.json() : []),
+    ]).then(([pubs, blogs, gallery, drafts]) => {
+      setCounts({ publications: pubs.length, blogs: blogs.length, gallery: gallery.length, drafts: drafts.length });
     });
   }, []);
 
@@ -19,6 +22,7 @@ export function AdminDashboard() {
     { label: 'Publications', count: counts.publications, icon: FileText, path: '/admin/publications', createPath: '/admin/publications/new' },
     { label: 'Blog Posts', count: counts.blogs, icon: BookOpen, path: '/admin/blogs', createPath: '/admin/blogs/new' },
     { label: 'Gallery Items', count: counts.gallery, icon: Image, path: '/admin/gallery', createPath: '/admin/gallery' },
+    { label: 'Paper Drafts', count: counts.drafts, icon: Newspaper, path: '/admin/papers', createPath: '/admin/papers' },
   ];
 
   return (
